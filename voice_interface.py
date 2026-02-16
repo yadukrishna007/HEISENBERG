@@ -12,7 +12,7 @@ engine = pyttsx3.init()
 def speak(text: str):
     engine.say(text)
     engine.runAndWait()
-
+ 
 def listen() -> str:
     print("Listening...")
     audio = sd.rec(

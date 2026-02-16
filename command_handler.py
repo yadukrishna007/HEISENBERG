@@ -31,8 +31,9 @@ def is_valid_intent(intent: dict) -> bool:
     if not isinstance(intent, dict):
         return False
 
-    action = intent.get("action")
-    target = intent.get("target")
+    action = intent.get("action", "").strip().lower()
+    target = intent.get("target", "").strip().lower()
+
 
     if action not in ALLOWED_ACTIONS:
         return False
@@ -47,6 +48,18 @@ def extract_explicit_target(command: str):
         if target in command:
             return target
     return None
+
+def looks_like_direct_command(command: str):
+    words = command.split()
+
+    if not words:
+        return False
+
+    # Direct open commands
+    if words[0] == "open":
+        return True
+
+    return False
 
 def execute(action: str, target: str) -> str:
     habit_key = f"{action}_{target}"
@@ -63,6 +76,26 @@ def execute(action: str, target: str) -> str:
     return "I understood the request, but it is not safe to execute."
 
 def handle_command(command: str, pending_confirmation):
+    # FAST ROUTER (skip AI if obvious command)
+    if looks_like_direct_command(command):
+
+        explicit_target = extract_explicit_target(command)
+
+        if explicit_target in APPS:
+            open_app(APPS[explicit_target])
+            return (
+                f"Opened app: {explicit_target}",
+                None,
+                {"action": "open_app", "target": explicit_target}
+            )
+
+        if explicit_target in FOLDERS:
+            open_folder(FOLDERS[explicit_target])
+            return (
+                f"Opened folder: {explicit_target}",
+                None,
+                {"action": "open_folder", "target": explicit_target}
+            )
 
     # 1️⃣ If waiting for confirmation
     if pending_confirmation:
@@ -103,18 +136,25 @@ def handle_command(command: str, pending_confirmation):
 
     # 4️⃣ AI-based execution (validated)
     intent = interpret(command)
+    print("DEBUG INTENT:", intent)
 
-    if is_valid_intent(intent):
-        action = intent["action"]
-        target = intent["target"]
+    intent_type = intent.get("intent_type")
 
-        result = execute(action, target)
+    if intent_type == "tool_call":
+        if not is_valid_intent(intent):
+            return "I cannot safely execute that.", None, {}
 
-        return (
-            result,
-            None,
-            {"action": action, "target": target}
-        )
+        result = execute(intent["action"], intent["target"])
+        return result, None, intent
+
+    if intent_type == "conversation":
+        return intent.get("response", "I'm not sure how to respond."), None, {}
+
+    if intent_type == "clarification":
+        return intent.get("question", "Could you clarify?"), None, {}
+
+    return "I did not understand that.", None, {}
+
 
     # 5️⃣ Nothing matched
     return "Command not recognized.", pending_confirmation, {}
