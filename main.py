@@ -30,6 +30,11 @@ def main():
             # Default assignment (IMPORTANT)
             command = normalized_command
 
+            # SYSTEM COMMANDS (bypass AI completely)
+            if command.strip() in ("exit", "quit", "stop"):
+                print("Heisenberg: Shutting down.")
+                break
+
             # Only ask confirmation if fuzzy match detected
             if fuzzy and suggestion:
                 print(f"Heisenberg: Did you mean open {suggestion}? (yes/no)")
@@ -52,13 +57,9 @@ def main():
             print(f"You (voice): {command}")
         else:
             command = input("You: ").strip().lower()
-
-        # 🔴 Exit condition
-        if command in ("exit", "quit", "stop"):
-            if USE_VOICE:
-                speak("Shutting down.")
-            print("Heisenberg: Shutting down.")
-            break
+        
+        if not command.strip():
+            continue
 
         # 🧠 Core logic (UNCHANGED)
         response, pending_confirmation, meta = handle_command(

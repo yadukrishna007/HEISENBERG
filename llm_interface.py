@@ -3,28 +3,28 @@ import torch
 import json
 import re
 
-MODEL_NAME = "microsoft/phi-2"
+MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
-conversation_history = []
-
+device = "cpu"
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float32
-)
+).to(device)
+
+conversation_history = []
 
 SYSTEM_PROMPT = """
-You are Heisenberg, a local AI assistant.
+You are Heisenberg, a local AI personal assistant.
 
-You must classify the user's input into one of these types:
+You must classify user input into ONE of the following:
 
 1. tool_call
 2. conversation
 3. clarification
 
-If tool_call:
-Return JSON:
+If tool_call, respond ONLY in JSON:
 {
   "intent_type": "tool_call",
   "action": "...",
@@ -32,83 +32,107 @@ Return JSON:
 }
 
 If conversation:
-Return JSON:
 {
   "intent_type": "conversation",
   "response": "..."
 }
 
 If clarification:
-Return JSON:
 {
   "intent_type": "clarification",
   "question": "..."
 }
 
-Respond ONLY in valid JSON.
+If the user input is unclear, meaningless, or appears to be speech recognition noise,
+respond with:
+
+{
+  "intent_type": "clarification",
+  "question": "I didn't quite catch that. Could you repeat?"
+}
+
+
+Keep responses short, natural, and concise like a voice assistant.
+Avoid long explanations unless asked.
+
+
+Do not add explanations outside JSON.
 """
 
-def build_prompt(user_input: str):
+
+# ---------- Prompt Builder ----------
+def build_prompt(user_input):
+
     history_text = ""
 
-    for turn in conversation_history:
+    for turn in conversation_history[-6:]:
         role = turn["role"]
         content = turn["content"]
-        history_text += f"{role.upper()}: {content}\n"
+        history_text += f"<|{role}|>\n{content}\n"
 
     prompt = (
-        SYSTEM_PROMPT +
-        "\n\n" +
-        history_text +
-        f"USER: {user_input}\nASSISTANT:"
+        f"<|system|>\n{SYSTEM_PROMPT}\n"
+        f"{history_text}"
+        f"<|user|>\n{user_input}\n"
+        f"<|assistant|>\n"
     )
 
     return prompt
 
 
-def generate_from_model(prompt: str):
-    inputs = tokenizer(prompt, return_tensors="pt")
+# ---------- Model Generation ----------
+def generate_from_model(prompt):
+
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
     with torch.no_grad():
         outputs = model.generate(
-        **inputs,
-        max_new_tokens=80,
-        temperature=0.0,
-        do_sample=False,
-        use_cache=True
-    )
+            **inputs,
+            max_new_tokens=120,
+            do_sample=False,
+            temperature=0.0,
+            use_cache=True,
+            pad_token_id=tokenizer.eos_token_id
+        )
 
-    response = tokenizer.decode(
-        outputs[0],
-        skip_special_tokens=True
-    )
+    decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Extract only new part after ASSISTANT:
-    response = response.split("ASSISTANT:")[-1].strip()
+    response = decoded.split("<|assistant|>")[-1].strip()
 
     return response
 
-def parse_json(text: str):
+
+# ---------- JSON Parsing ----------
+def parse_json(text):
+
     try:
-        json_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
+        match = re.search(r"\{[\s\S]*?\}", text)
+        if match:
+            return json.loads(match.group())
     except Exception:
         pass
 
+    # fallback → treat as conversation
     return {
         "intent_type": "conversation",
-        "response": "I’m not sure I understood that."
+        "response": text.strip()
     }
 
 
+# ---------- Main Interface ----------
 def interpret(user_input: str):
 
     prompt = build_prompt(user_input)
 
     raw_response = generate_from_model(prompt)
 
-    conversation_history.append({"role": "user", "content": user_input})
-    conversation_history.append({"role": "assistant", "content": raw_response})
+    print("RAW MODEL OUTPUT:\n", raw_response)
+
+    conversation_history.append(
+        {"role": "user", "content": user_input}
+    )
+    conversation_history.append(
+        {"role": "assistant", "content": raw_response}
+    )
 
     return parse_json(raw_response)
