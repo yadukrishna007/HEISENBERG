@@ -3,7 +3,7 @@ from memory_manager import get_state, update_state, add_alias
 from voice_interface import listen, speak
 from command_normalizer import normalize_command, is_valid_target
 
-USE_VOICE = True  # Set False if you want text-only mode
+USE_VOICE = False  # Set False if you want text-only mode
 
 def main():
     state = get_state()

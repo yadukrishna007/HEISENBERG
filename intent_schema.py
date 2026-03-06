@@ -3,6 +3,11 @@
 ALLOWED_ACTIONS = {
     "open_app",
     "open_folder",
+    "open_website",
+    "browser_play_pause",
+    "browser_rewind",
+    "browser_forward",
+    "web_search",
     "none"
 }
 
@@ -25,6 +30,10 @@ def is_valid_intent(intent: dict) -> bool:
 
     if action not in ALLOWED_ACTIONS:
         return False
+
+    # For dynamic actions, any target is fine.
+    if action in {"open_app", "open_website", "web_search"}:
+        return True
 
     if target not in ALLOWED_TARGETS:
         return False
