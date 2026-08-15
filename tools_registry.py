@@ -1,30 +1,43 @@
-TOOLS = {
-    "open_app": {
-        "description": "Opens an installed application",
-        "parameters": ["app_name"]
-    },
-    "open_folder": {
-        "description": "Opens a folder in the system",
-        "parameters": ["folder_name"]
-    },
-    "open_website": {
-        "description": "Opens a website or specific URL in the default browser",
-        "parameters": ["website_name_or_url"]
-    },
-    "browser_play_pause": {
-        "description": "Plays or pauses media in the active browser window",
-        "parameters": []
-    },
-    "browser_rewind": {
-        "description": "Rewinds or seeks backward in the active browser media player",
-        "parameters": []
-    },
-    "browser_forward": {
-        "description": "Fast-forwards or seeks ahead in the active browser media player",
-        "parameters": []
-    },
-    "web_search": {
-        "description": "Searches the web for factual information, news, or answers to questions",
-        "parameters": ["search_query"]
-    }
-}
+"""
+Central Tool Registry for Heisenberg V2 Architecture
+Registers all available system, OS, and web tools and provides schema definitions to the LLM.
+"""
+
+from typing import Dict, Optional, List
+from tools.base_tool import BaseTool
+from tools.os_tools import OpenAppTool, OpenFolderTool, SystemControlTool
+from tools.web_tools import WebSearchTool, OpenWebsiteTool, BrowserControlTool
+
+
+class ToolRegistry:
+    def __init__(self):
+        self._tools: Dict[str, BaseTool] = {}
+        self._register_default_tools()
+
+    def _register_default_tools(self):
+        default_tools = [
+            OpenAppTool(),
+            OpenFolderTool(),
+            SystemControlTool(),
+            WebSearchTool(),
+            OpenWebsiteTool(),
+            BrowserControlTool()
+        ]
+        for tool in default_tools:
+            self.register_tool(tool)
+
+    def register_tool(self, tool: BaseTool):
+        self._tools[tool.name] = tool
+
+    def get_tool(self, name: str) -> Optional[BaseTool]:
+        return self._tools.get(name)
+
+    def list_tools(self) -> List[str]:
+        return list(self._tools.keys())
+
+    def get_all_schemas(self) -> List[Dict]:
+        return [tool.get_schema() for tool in self._tools.values()]
+
+
+# Global singleton instance
+registry = ToolRegistry()

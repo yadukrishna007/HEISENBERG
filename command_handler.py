@@ -1,9 +1,11 @@
 import os
 from system_actions import open_app, open_folder, get_installed_apps, open_website, browser_control, fetch_info
 from llm_interface import interpret
+from agent_executor import agent_executor
 from intent_schema import ALLOWED_ACTIONS, ALLOWED_TARGETS, is_valid_intent
 from sensitive_actions import SENSITIVE_ACTIONS
 from memory_manager import increment_habit
+
 
 USER_HOME = os.path.expanduser("~")
 
@@ -180,27 +182,5 @@ def handle_command(command: str, pending_confirmation):
             {"action": "web_search", "target": query}
         )
 
-    # 4️⃣ AI-based execution (validated)
-    intent = interpret(command)
-    print("DEBUG INTENT:", intent)
-
-    intent_type = intent.get("intent_type")
-
-    if intent_type == "tool_call":
-        if not is_valid_intent(intent):
-            return "I cannot safely execute that.", None, {}
-
-        result = execute(intent["action"], intent["target"])
-        return result, None, intent
-
-    if intent_type == "conversation":
-        return intent.get("response", "I'm not sure how to respond."), None, {}
-
-    if intent_type == "clarification":
-        return intent.get("question", "Could you clarify?"), None, {}
-
-    return "I did not understand that.", None, {}
-
-
-    # 5️⃣ Nothing matched
-    return "Command not recognized.", pending_confirmation, {}
+    # 4️⃣ AI-based Agent Execution Loop (Validation -> Safety -> Tool -> Observation)
+    return agent_executor.run(command, pending_confirmation)
