@@ -152,6 +152,11 @@ class TaskManager:
     def get_active_tasks(self) -> List[Task]:
         return [t for t in self.tasks.values() if t.status in (TaskStatus.CREATED, TaskStatus.IN_PROGRESS, TaskStatus.PAUSED)]
 
+    def get_interrupted_tasks(self) -> List[Task]:
+        """Returns tasks that were left IN_PROGRESS or PAUSED across application restarts."""
+        return [t for t in self.tasks.values() if t.status in (TaskStatus.IN_PROGRESS, TaskStatus.PAUSED)]
+
 
 # Global singleton instance
 task_manager = TaskManager()
+
