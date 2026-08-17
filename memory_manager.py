@@ -1,62 +1,186 @@
+"""
+Explicit Memory Gatekeeper for Heisenberg V2 Architecture
+Acts as the central gatekeeper deciding what data is worth persisting long-term into
+persistent JSON stores (user facts, preferences, habits, state) vs transient chatter.
+"""
+
 import json
 import os
-from typing import Any
+import re
+from typing import Any, Dict, List, Optional
 
-MEMORY_DIR = "memory"
+MEMORY_DIR = os.path.join(os.path.dirname(__file__), "memory")
 
 FILES = {
     "preferences": "preferences.json",
     "habits": "habits.json",
-    "state": "state.json"
+    "state": "state.json",
+    "user_facts": "user_facts.json"
 }
 
-def _load(file_name: str) -> dict:
-    path = os.path.join(MEMORY_DIR, file_name)
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
 
-def _save(file_name: str, data: dict):
-    path = os.path.join(MEMORY_DIR, file_name)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+class MemoryManager:
+    """Explicit Gatekeeper for all persistent memory operations."""
+    
+    def __init__(self, memory_dir: str = MEMORY_DIR):
+        self.memory_dir = memory_dir
+        self._ensure_files()
 
-# -------- Preferences --------
+    def _ensure_files(self):
+        os.makedirs(self.memory_dir, exist_ok=True)
+        for fname in FILES.values():
+            fpath = os.path.join(self.memory_dir, fname)
+            if not os.path.exists(fpath):
+                with open(fpath, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+
+    def _load(self, file_key: str) -> dict:
+        path = os.path.join(self.memory_dir, FILES[file_key])
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save(self, file_key: str, data: dict):
+        path = os.path.join(self.memory_dir, FILES[file_key])
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"[MemoryManager Error] Failed to save {file_key}: {e}")
+
+    # -------- Memory Gatekeeper Logic --------
+    def should_remember(self, text: str) -> bool:
+        """Determines whether text contains long-term user facts or preferences worth persisting."""
+        if not text or len(text.strip()) < 4:
+            return False
+
+        patterns = [
+            r"my name is\s+(.+)",
+            r"i prefer\s+(.+)",
+            r"remember that\s+(.+)",
+            r"my favorite\s+(.+)",
+            r"i work as\s+(.+)",
+            r"i live in\s+(.+)",
+            r"my default\s+(.+)"
+        ]
+
+        text_lower = text.lower()
+        for pat in patterns:
+            if re.search(pat, text_lower):
+                return True
+        return False
+
+    def extract_and_remember(self, text: str) -> Optional[str]:
+        """Filters input text and persists any user facts found."""
+        text_lower = text.lower().strip()
+        
+        # Name
+        match_name = re.search(r"my name is\s+([a-zA-Z0-9\s]+)", text_lower)
+        if match_name:
+            name = match_name.group(1).strip().title()
+            self.remember_fact("user_name", name)
+            return f"Learned user name: '{name}'"
+
+        # General Preference / Fact
+        match_pref = re.search(r"(?:remember that|i prefer|my favorite)\s+(.+)", text_lower)
+        if match_pref:
+            fact_detail = match_pref.group(1).strip()
+            fact_key = f"pref_{int(os.times().system * 1000)}"
+            self.remember_fact(fact_key, fact_detail)
+            return f"Saved preference: '{fact_detail}'"
+
+        return None
+
+    def remember_fact(self, key: str, value: Any):
+        facts = self._load("user_facts")
+        facts[key] = value
+        self._save("user_facts", facts)
+
+    def get_fact(self, key: str, default=None) -> Any:
+        facts = self._load("user_facts")
+        return facts.get(key, default)
+
+    def get_all_facts(self) -> Dict[str, Any]:
+        return self._load("user_facts")
+
+    def format_facts_summary(self) -> str:
+        facts = self.get_all_facts()
+        if not facts:
+            return ""
+        lines = []
+        for k, v in facts.items():
+            if k == "user_name":
+                lines.append(f"- User's name is {v}.")
+            else:
+                lines.append(f"- {v}.")
+        return "\n".join(lines)
+
+    # -------- Preferences --------
+    def get_preference(self, key: str, default=None):
+        data = self._load("preferences")
+        return data.get(key, default)
+
+    def set_preference(self, key: str, value: Any):
+        data = self._load("preferences")
+        data[key] = value
+        self._save("preferences", data)
+
+    # -------- Habits --------
+    def increment_habit(self, key: str):
+        data = self._load("habits")
+        data[key] = data.get(key, 0) + 1
+        self._save("habits", data)
+
+    # -------- State --------
+    def get_state(self) -> dict:
+        return self._load("state")
+
+    def update_state(self, **kwargs):
+        data = self._load("state")
+        for k, v in kwargs.items():
+            data[k] = v
+        self._save("state", data)
+
+    # -------- Aliases --------
+    def get_aliases(self) -> dict:
+        data = self._load("preferences")
+
+        return data.get("aliases", {})
+
+    def add_alias(self, alias: str, target: str):
+        data = self._load("preferences")
+        aliases = data.get("aliases", {})
+        aliases[alias] = target
+        data["aliases"] = aliases
+        self._save("preferences", data)
+
+
+# Global singleton instance
+memory_manager = MemoryManager()
+
+# Module-level legacy wrappers for backwards compatibility
 def get_preference(key: str, default=None):
-    data = _load(FILES["preferences"])
-    return data.get(key, default)
+    return memory_manager.get_preference(key, default)
 
 def set_preference(key: str, value: Any):
-    data = _load(FILES["preferences"])
-    data[key] = value
-    _save(FILES["preferences"], data)
+    memory_manager.set_preference(key, value)
 
-# -------- Habits --------
 def increment_habit(key: str):
-    data = _load(FILES["habits"])
-    data[key] = data.get(key, 0) + 1
-    _save(FILES["habits"], data)
+    memory_manager.increment_habit(key)
 
-# -------- State --------
 def get_state():
-    return _load(FILES["state"])
+    return memory_manager.get_state()
 
 def update_state(**kwargs):
-    data = _load(FILES["state"])
-    for k, v in kwargs.items():
-        data[k] = v
-    _save(FILES["state"], data)
+    memory_manager.update_state(**kwargs)
 
 def clear_pending_confirmation():
-    update_state(pending_confirmation=None)
+    memory_manager.update_state(pending_confirmation=None)
 
-# -------- Aliases --------
 def get_aliases():
-    data = _load(FILES["preferences"])
-    return data.get("aliases", {})
+    return memory_manager.get_aliases()
 
 def add_alias(alias: str, target: str):
-    data = _load(FILES["preferences"])
-    aliases = data.get("aliases", {})
-    aliases[alias] = target
-    data["aliases"] = aliases
-    _save(FILES["preferences"], data)
+    memory_manager.add_alias(alias, target)

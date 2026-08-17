@@ -9,6 +9,8 @@ from llm_interface import interpret
 from validation_engine import validate_tool_call
 from safety_engine import evaluate_safety, SafetyResult
 from tools_registry import registry
+from memory_manager import memory_manager
+from task_manager import task_manager
 
 
 class AgentExecutor:
@@ -18,6 +20,12 @@ class AgentExecutor:
         self.max_turns = max_turns
 
     def run(self, user_input: str, pending_confirmation: Optional[Dict[str, Any]] = None) -> Tuple[str, Optional[Dict[str, Any]], Dict[str, Any]]:
+        # Gatekeeper memory check
+        if memory_manager.should_remember(user_input):
+            remember_msg = memory_manager.extract_and_remember(user_input)
+            if remember_msg:
+                print(f"[Memory Gatekeeper] {remember_msg}")
+
         # Handle pending confirmation response
         if pending_confirmation:
             tool_name = pending_confirmation.get("tool")
@@ -40,9 +48,13 @@ class AgentExecutor:
             else:
                 return "Please reply with 'yes' or 'no' to confirm.", pending_confirmation, {}
 
+        # Track task state
+        task = task_manager.create_task(description=user_input)
+
         # Core Agent Loop
         current_prompt = user_input
         turn_count = 0
+
 
         while turn_count < self.max_turns:
             turn_count += 1

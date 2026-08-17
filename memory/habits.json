@@ -1,3 +1,5 @@
 {
-  "open_folder_downloads": 10
+  "open_folder_downloads": 10,
+  "open_app_chrome": 1,
+  "open_app_vscode": 1
 }

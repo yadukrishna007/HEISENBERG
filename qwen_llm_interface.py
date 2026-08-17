@@ -39,12 +39,20 @@ RULES & EXAMPLES:
 
 
 
+from memory_manager import memory_manager
+
 def build_chat_messages(user_input: str):
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    facts_summary = memory_manager.format_facts_summary()
+    system_content = SYSTEM_PROMPT
+    if facts_summary:
+        system_content += f"\n\nKNOWN USER FACTS & PREFERENCES:\n{facts_summary}"
+
+    messages = [{"role": "system", "content": system_content}]
     for turn in conversation_history[-6:]:
         messages.append(turn)
     messages.append({"role": "user", "content": user_input})
     return messages
+
 
 
 def generate_qwen_response(user_input: str) -> str:
