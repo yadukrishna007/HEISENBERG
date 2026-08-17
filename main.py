@@ -12,7 +12,7 @@ def main():
     state = get_state()
     pending_confirmation = state.get("pending_confirmation")
 
-    print("Heisenberg V2 is online. Type or speak 'exit' to stop.")
+    print("Heisenberg is online. Type or speak 'exit' to stop.")
 
     # 1️⃣ Task Recovery check on startup (Phase 2 feature)
     interrupted_tasks = task_manager.get_interrupted_tasks()
