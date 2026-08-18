@@ -7,7 +7,7 @@ from typing import Dict, Optional, List
 from tools.base_tool import BaseTool
 from tools.os_tools import OpenAppTool, OpenFolderTool, SystemControlTool, TakeScreenshotTool
 from tools.web_tools import WebSearchTool, FetchUrlSummaryTool, OpenWebsiteTool
-from tools.browser_tools import BrowserNavigateTool, BrowserMediaTool, BrowserInspectTool
+from tools.browser_tools import BrowserNavigateTool, BrowserMediaTool, BrowserInspectTool, BrowserClickTool, BrowserTypeTool
 
 
 class ToolRegistry:
@@ -26,8 +26,11 @@ class ToolRegistry:
             OpenWebsiteTool(),
             BrowserNavigateTool(),
             BrowserMediaTool(),
-            BrowserInspectTool()
+            BrowserInspectTool(),
+            BrowserClickTool(),
+            BrowserTypeTool()
         ]
+
         for tool in default_tools:
             self.register_tool(tool)
 
