@@ -21,6 +21,7 @@ def validate_tool_call(tool_name: str, arguments: Dict[str, Any]) -> ValidationR
     if not tool_name:
         return ValidationResult(valid=False, error="Tool name cannot be empty.")
 
+    from tools_registry import registry
     tool = registry.get_tool(tool_name)
     if not tool:
         available = ", ".join(registry.list_tools())
@@ -43,3 +44,12 @@ def validate_tool_call(tool_name: str, arguments: Dict[str, Any]) -> ValidationR
         )
 
     return ValidationResult(valid=True)
+
+
+class ValidationEngine:
+    def validate_call(self, tool_name: str, arguments: Dict[str, Any]) -> ValidationResult:
+        return validate_tool_call(tool_name, arguments)
+
+
+validation_engine = ValidationEngine()
+

@@ -5,8 +5,9 @@ Registers all available system, OS, and web tools and provides schema definition
 
 from typing import Dict, Optional, List
 from tools.base_tool import BaseTool
-from tools.os_tools import OpenAppTool, OpenFolderTool, SystemControlTool
-from tools.web_tools import WebSearchTool, OpenWebsiteTool, BrowserControlTool
+from tools.os_tools import OpenAppTool, OpenFolderTool, SystemControlTool, TakeScreenshotTool
+from tools.web_tools import WebSearchTool, FetchUrlSummaryTool, OpenWebsiteTool
+from tools.browser_tools import BrowserNavigateTool, BrowserMediaTool, BrowserInspectTool
 
 
 class ToolRegistry:
@@ -19,9 +20,13 @@ class ToolRegistry:
             OpenAppTool(),
             OpenFolderTool(),
             SystemControlTool(),
+            TakeScreenshotTool(),
             WebSearchTool(),
+            FetchUrlSummaryTool(),
             OpenWebsiteTool(),
-            BrowserControlTool()
+            BrowserNavigateTool(),
+            BrowserMediaTool(),
+            BrowserInspectTool()
         ]
         for tool in default_tools:
             self.register_tool(tool)
@@ -41,3 +46,4 @@ class ToolRegistry:
 
 # Global singleton instance
 registry = ToolRegistry()
+

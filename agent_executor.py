@@ -6,9 +6,7 @@ Observation -> Validation -> Safety -> Tool Execution -> Observation -> Finished
 
 from typing import Tuple, Dict, Any, Optional
 from llm_interface import interpret
-from validation_engine import validate_tool_call
-from safety_engine import evaluate_safety, SafetyResult
-from tools_registry import registry
+from tools.tool_router import tool_router
 from memory_manager import memory_manager
 from task_manager import task_manager
 
@@ -33,14 +31,11 @@ class AgentExecutor:
             user_reply = user_input.strip().lower()
 
             if user_reply in ("yes", "y", "confirm"):
-                tool = registry.get_tool(tool_name)
-                if tool:
-                    res = tool.execute(**args)
-                    if res.success:
-                        return f"Confirmed. Executed {tool_name}: {res.data}", None, {"tool": tool_name, "args": args}
-                    else:
-                        return f"Execution failed: {res.error}", None, {}
-                return "Failed to find pending tool.", None, {}
+                exec_data = tool_router.route_and_execute(tool_name, args, user_confirmed=True)
+                if exec_data["status"] == "SUCCESS":
+                    return f"Confirmed. Executed {tool_name}: {exec_data['result']}", None, {"tool": tool_name, "args": args}
+                else:
+                    return f"Execution failed: {exec_data.get('error')}", None, {}
 
             elif user_reply in ("no", "n", "cancel"):
                 return "Action cancelled by user.", None, {}
@@ -55,7 +50,6 @@ class AgentExecutor:
         current_prompt = user_input
         turn_count = 0
 
-
         while turn_count < self.max_turns:
             turn_count += 1
             intent = interpret(current_prompt)
@@ -64,6 +58,7 @@ class AgentExecutor:
             # Case 1: Simple conversational response
             if intent_type == "conversation":
                 response_text = intent.get("response", "I am not sure how to answer that.")
+                task_manager.complete_task(task.id)
                 return response_text, None, {"type": "conversation"}
 
             # Case 2: Clarification request
@@ -91,35 +86,30 @@ class AgentExecutor:
                             "browser_rewind": "rewind",
                             "browser_forward": "forward"
                         }
-                        tool_name = "browser_control"
+                        tool_name = "browser_media_control"
                         arguments = {"action": act_map.get(intent.get("action"), "play_pause")}
 
+                # Dispatch via ToolRouter (Stage 1 Validation + Stage 2 Safety + Execution)
+                exec_data = tool_router.route_and_execute(tool_name, arguments)
 
-                # Stage 1: Tool Validation
-                val_result = validate_tool_call(tool_name, arguments)
-                if not val_result.valid:
-                    print(f"[Agent Loop] Stage 1 Validation Rejected: {val_result.error}")
-                    # Feed observation back to agent loop to replan or notify user
-                    current_prompt = f"System Error: Validation failed - {val_result.error}. Please retry or clarify."
+                if exec_data["status"] == "VALIDATION_FAILED":
+                    print(f"[Agent Loop] Stage 1 Validation Rejected: {exec_data['error']}")
+                    current_prompt = f"System Error: Validation failed - {exec_data['error']}. Please retry or clarify."
                     continue
 
-                # Stage 2: Safety Engine Risk Assessment
-                safety_result = evaluate_safety(tool_name, arguments)
-                if safety_result.status == SafetyResult.STATUS_NEEDS_CONFIRMATION:
-                    pending_data = {"tool": tool_name, "args": arguments}
-                    return safety_result.prompt, pending_data, {}
+                if exec_data["status"] == "NEEDS_CONFIRMATION":
+                    return exec_data["prompt"], exec_data["pending_action"], {}
 
-                elif safety_result.status == SafetyResult.STATUS_DENIED:
-                    return f"Safety policy denied execution of tool '{tool_name}'.", None, {}
+                if exec_data["status"] == "SAFETY_DENIED":
+                    task_manager.fail_task(task.id, exec_data["error"])
+                    return f"Safety policy denied execution: {exec_data['error']}", None, {}
 
-                # Stage 3: Execution
-                tool = registry.get_tool(tool_name)
-                exec_result = tool.execute(**arguments)
-
-                if exec_result.success:
-                    return str(exec_result.data), None, {"tool": tool_name, "args": arguments}
+                if exec_data["status"] == "SUCCESS":
+                    task_manager.complete_task(task.id)
+                    return str(exec_data["result"]), None, {"tool": tool_name, "args": arguments}
                 else:
-                    return f"Tool execution error: {exec_result.error}", None, {}
+                    task_manager.fail_task(task.id, str(exec_data.get("error")))
+                    return f"Tool execution error: {exec_data.get('error')}", None, {}
 
         return "I completed the maximum reasoning steps without reaching a final response.", None, {}
 
