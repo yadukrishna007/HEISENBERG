@@ -1,1 +1,10 @@
 models/*.gguf
+__pycache__/
+tools/__pycache__/
+*.pyc
+*.log
+*_out.txt
+test_llm_out*.txt
+venv/
+scratch/
+memory/.key

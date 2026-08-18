@@ -7,5 +7,23 @@
     "status": "CREATED",
     "created_at": 1786933245.5808182,
     "updated_at": 1786933245.5808187
+  },
+  "task_1787022221628": {
+    "id": "task_1787022221628",
+    "description": "what is artificial intelligence?",
+    "steps": [],
+    "completed_steps": [],
+    "status": "COMPLETED",
+    "created_at": 1787022221.6285386,
+    "updated_at": 1787022226.3336592
+  },
+  "task_1787022226335": {
+    "id": "task_1787022226335",
+    "description": "search for latest quantum computing breakthrough",
+    "steps": [],
+    "completed_steps": [],
+    "status": "COMPLETED",
+    "created_at": 1787022226.3350337,
+    "updated_at": 1787022229.5684245
   }
 }
